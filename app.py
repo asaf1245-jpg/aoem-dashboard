@@ -1477,19 +1477,87 @@ elif view_mode == "Governor Browser & Profile":
                         <div class="hero-container">{heroes_html}</div>
                     </div>""", unsafe_allow_html=True)
 
-        st.markdown("#### Stats Over Time")
-        chart_metric = st.selectbox("Select Metric for Chart:", ["Power", "Merits"], key="chart_metric_sel")
-        fig_time = go.Figure()
-        dates = ["2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01"]
-        base_val = g_row['Power'] if chart_metric == "Power" else g_row['Merits']
-        values = [base_val * (0.85 + 0.02 * i) for i in range(len(dates))]
-        fig_time.add_trace(go.Scatter(
-            x=dates, y=values, mode='lines+markers', name=chart_metric,
-            line=dict(width=3, color='#d4af37' if chart_metric=="Power" else '#f59e0b'),
-            marker=dict(size=8)
-        ))
-        fig_time.update_layout(template="plotly_dark", xaxis_title="Date", yaxis_title=chart_metric, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(10,10,15,0.8)")
-        st.plotly_chart(fig_time, use_container_width=True)
+        
+
+
+        # --- HERO LOADOUT & GEAR MANAGER ---
+        st.markdown("---")
+        st.markdown("#### 👑 Hero Loadout & Equipment Manager (3-Hero Formations)")
+        st.caption("Configure hero levels, star ratings (1-5), and equipment loadouts (Weapon, Armor, Ring, Mount) per march:")
+
+        selected_march_loadout = st.selectbox("Select March to Configure Hero Loadout:", [f"March {i}" for i in range(1, 6)], key="loadout_march_sel")
+        m_num = int(selected_march_loadout.split(" ")[1])
+        loadout_p_id = f"{g_row['Kingdom']}_{selected_gov}"
+
+        lc1, lc2, lc3 = st.columns(3)
+        heroes_slots = [("Hero 1 (Commander)", f"{loadout_p_id}__m{m_num}__h1", f"{loadout_p_id}__m{m_num}__h1_lv", f"{loadout_p_id}__m{m_num}__h1_stars"),
+                        ("Hero 2 (Primary)", f"{loadout_p_id}__m{m_num}__h2", f"{loadout_p_id}__m{m_num}__h2_lv", f"{loadout_p_id}__m{m_num}__h2_stars"),
+                        ("Hero 3 (Secondary)", f"{loadout_p_id}__m{m_num}__h3", f"{loadout_p_id}__m{m_num}__h3_lv", f"{loadout_p_id}__m{m_num}__h3_stars")]
+
+        gear_types = ["Weapon", "Armor", "Ring", "Mount Trait"]
+
+        for idx_h, (h_label, h_key, lv_key, star_key) in enumerate(heroes_slots, start=1):
+            with [lc1, lc2, lc3][idx_h - 1]:
+                st.markdown(f"<div style='font-weight:900; color:#d4af37; margin-bottom:4px;'>{h_label}</div>", unsafe_allow_html=True)
+                cur_h = st.session_state["player_disk_data"].get(h_key, "None")
+                h_idx = hero_options.index(cur_h) if cur_h in hero_options else 0
+                chosen_h = st.selectbox(f"Select {h_label}:", hero_options, index=h_idx, key=f"sel_{h_key}")
+                
+                cur_lv = int(st.session_state["player_disk_data"].get(lv_key, 50))
+                chosen_lv = st.slider(f"Level (LV):", 1, 60, cur_lv, key=f"sld_{lv_key}")
+                
+                cur_stars = int(st.session_state["player_disk_data"].get(star_key, 5))
+                chosen_stars = st.selectbox(f"Stars:", [1, 2, 3, 4, 5], index=cur_stars-1 if 1<=cur_stars<=5 else 4, key=f"sel_{star_key}")
+
+                # Gear selection
+                gear_item = st.selectbox(f"Equipment Gear:", ["Standard Elite", "Signet Ring (+15%)", "War Horse (+30%)", "Custom Weapon"], key=f"gear_{loadout_p_id}_m{m_num}_h{idx_h}")
+
+                # Save to disk
+                st.session_state["player_disk_data"][h_key] = chosen_h
+                st.session_state["player_disk_data"][lv_key] = chosen_lv
+                st.session_state["player_disk_data"][star_key] = chosen_stars
+                st.session_state["player_disk_data"][f"{loadout_p_id}__m{m_num}__h{idx_h}_gear"] = gear_item
+
+        save_disk_data(st.session_state["player_disk_data"])
+
+        # Render Visual Hero Cards
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        st.markdown(f"#### 🛡️ Visual Roster Card — {selected_march_loadout}")
+        
+        vc1, vc2, vc3 = st.columns(3)
+        for idx_v, (h_label, h_key, lv_key, star_key) in enumerate(heroes_slots, start=1):
+            h_name = st.session_state["player_disk_data"].get(h_key, "None")
+            h_lv = st.session_state["player_disk_data"].get(lv_key, 50)
+            h_st = st.session_state["player_disk_data"].get(star_key, 5)
+            h_gear = st.session_state["player_disk_data"].get(f"{loadout_p_id}__m{m_num}__h{idx_v}_gear", "Standard Elite")
+            star_stars_str = "⭐" * int(h_st)
+            
+            with [vc1, vc2, vc3][idx_v - 1]:
+                img_html = get_hero_img_html(h_name)
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, rgba(20, 24, 38, 0.95) 0%, rgba(10, 12, 20, 0.98) 100%); border: 2px solid #d4af37; border-radius: 12px; padding: 14px; text-align: center; box-shadow: 0 0 15px rgba(212,175,55,0.3);">
+                    <div style="font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase;">{h_label}</div>
+                    <div style="font-size: 16px; font-weight: 900; color: #ffffff; margin: 4px 0;">{h_name}</div>
+                    <div style="margin: 6px auto; display: flex; justify-content: center;">{img_html}</div>
+                    <div style="font-size: 13px; color: #f59e0b; font-weight: bold; margin-top: 6px;">LV {h_lv} • {star_stars_str}</div>
+                    <div style="font-size: 11px; color: #38bdf8; background: rgba(56,189,248,0.1); border-radius: 4px; padding: 4px; margin-top: 8px;"><b>Gear:</b> {h_gear}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+
+    st.markdown("#### Stats Over Time")
+    chart_metric = st.selectbox("Select Metric for Chart:", ["Power", "Merits"], key="chart_metric_sel")
+    fig_time = go.Figure()
+    dates = ["2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01", "2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01"]
+    base_val = g_row['Power'] if chart_metric == "Power" else g_row['Merits']
+    values = [base_val * (0.85 + 0.02 * i) for i in range(len(dates))]
+    fig_time.add_trace(go.Scatter(
+        x=dates, y=values, mode='lines+markers', name=chart_metric,
+        line=dict(width=3, color='#d4af37' if chart_metric=="Power" else '#f59e0b'),
+        marker=dict(size=8)
+    ))
+    fig_time.update_layout(template="plotly_dark", xaxis_title="Date", yaxis_title=chart_metric, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(10,10,15,0.8)")
+    st.plotly_chart(fig_time, use_container_width=True)
 
 
 # ----------------- VIEW 3: PRIMORDIAL CONFLICT & SERVER BENCHMARKS (UNIFIED) -----------------
